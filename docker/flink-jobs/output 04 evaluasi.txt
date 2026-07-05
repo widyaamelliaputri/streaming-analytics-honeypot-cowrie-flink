@@ -1,0 +1,165 @@
+(venv) PS C:\skripsi\docker> docker exec -it flink-jobmanager bash
+flink@jobmanager:~$ ./bin/flink run -py /opt/flink/usrlib/04_evaluasi.py
+Mode     : CONTAINER
+Output   : /opt/data/processed
+PG host  : postgres-hasil:5432
+
+=================================================================
+Langkah 1: Mengambil Data Hasil Klasifikasi dari PostgreSQL
+=================================================================
+  total event hasil streaming  : 20,000
+  kolom yang tersedia          : ['id', 'session_id', 'event_time', 'src_ip', 'src_port', 'dst_port', 'protocol', 'duration', 'login_attempt_count', 'login_success_count', 'cmd_count', 'session_event_count', 'unique_username_count', 'unique_password_count', 'ip_total_events', 'ip_total_sessions', 'ip_total_login_fail', 'ip_total_login_ok', 'ip_total_downloads', 'has_command', 'has_download', 'has_upload', 'has_malware', 'label_knn', 'label_lr', 'ground_truth', 'latency_ms', 'latency_knn_ms', 'latency_lr_ms', 'window_id', 'window_start', 'window_end', 'created_at']
+
+  sampel data (3 baris pertama):
+   id    session_id                       event_time                 src_ip  src_port  dst_port protocol   duration  login_attempt_count  login_success_count  cmd_count  session_event_count  unique_username_count  unique_password_count  ip_total_events  ip_total_sessions  ip_total_login_fail  ip_total_login_ok  ip_total_downloads  has_command  has_download  has_upload  has_malware label_knn label_lr  ground_truth  latency_ms  latency_knn_ms  latency_lr_ms  window_id                     window_start                       window_end                 created_at
+0   1  353d55b301f8 2024-03-25 07:39:36.058093+00:00  ::ffff:112.11.222.190     54799        23   telnet   0.000000                    0                    0          0                    1                      0                      0                1                  1                    0                  0                   0            0             0           0            0    normal   normal             0     316.898        313.5815         2.7580          1 2026-06-25 03:50:51.824526+00:00 2026-06-25 03:50:51.855103+00:00 2026-06-25 03:50:52.183570
+1   2  353d55b301f8 2024-03-25 07:40:15.761030+00:00  ::ffff:112.11.222.190         0        22  unknown  39.703071                    0                    0          0                    2                      0                      0                2                  1                    0                  0                   0            0             0           0            0    normal   normal             0       8.007          7.0145         0.4222          2 2026-06-25 03:50:52.239455+00:00 2026-06-25 03:50:52.239616+00:00 2026-06-25 03:50:52.247962
+2   3  d2092f5e9efe 2024-03-25 07:42:26.329119+00:00   ::ffff:149.50.103.48     47838        23   telnet   0.000000                    0                    0          0                    1                      0                      0                1                  1                    0                  0                   0            0             0           0            0    normal   normal             0      17.552         16.1488         0.5481          3 2026-06-25 03:50:52.250631+00:00 2026-06-25 03:50:52.250879+00:00 2026-06-25 03:50:52.268923
+
+=================================================================
+Langkah 2: Distribusi label hasil klasifikasi streaming
+=================================================================
+
+  Model                Label        Jumlah  Persentase
+  ───────────────────  ───────  ──────────  ──────────
+  kNN                  anomali      10,739       53.7%
+  kNN                  normal        9,261       46.3%
+  Logistic Regression  anomali      13,445       67.2%
+  Logistic Regression  normal        6,555       32.8%
+
+=================================================================
+Langkah 3: Evaluasi Metrik Awal
+=================================================================
+  sumber: metrics_awal.json (hasil evaluasi model sebelum streaming)
+
+  Metrik                  kNN           LR
+  ────────────── ──────────── ────────────
+  accuracy             0.9978       0.9980
+  precision            0.9236       0.9187
+  recall               0.9732       0.9866
+  f1_score             0.9477       0.9515
+
+=================================================================
+Langkah 4: Evaluasi Metrik Akhir
+=================================================================
+  total event yang dievaluasi  : 20,000
+  metode: prediksi kNN & LR dibandingkan terhadap ground_truth
+          (ground_truth diturunkan dari eventid — konsisten dengan preprocessing)
+
+  Metrik                  kNN           LR
+  ────────────── ──────────── ────────────
+  accuracy             0.8199       0.7510
+  precision            0.7423       0.6422
+  recall               0.9053       0.9806
+  f1_score             0.8158       0.7761
+
+=================================================================
+Langkah 5: Perbandingan Evaluasi Metrik Awal vs Akhir
+=================================================================
+  awal  = evaluasi offline pada data uji (sebelum streaming)
+  akhir = evaluasi pada data hasil streaming postgresql
+
+  Metrik             kNN Awal    kNN Akhir      LR Awal     LR Akhir
+  ────────────── ──────────── ──────────── ──────────── ────────────
+  Accuracy             0.9978       0.8199       0.9980       0.7510
+  Precision            0.9236       0.7423       0.9187       0.6422
+  Recall               0.9732       0.9053       0.9866       0.9806
+  F1-Score             0.9477       0.8158       0.9515       0.7761
+
+=================================================================
+Langkah 6: Analisis Latensi per Model (kNN vs Logistic Regression)
+=================================================================
+  total event yang dianalisis  : 20,000
+
+  Statistik                       kNN (ms)        LR (ms)     Total (ms)
+  ───────────────────────── ────────────── ────────────── ──────────────
+  Rata-rata                        11.7401         0.7091        13.6323
+  Median                            8.7684         0.5774        10.5580
+  Std. Deviasi                     15.2156         0.9176        16.0144
+  Minimum                           1.8950         0.2170         2.7570
+  Maksimum                        336.6208        13.3429       339.1070
+  Persentil 95                     30.3471         1.3146        34.2947
+  Persentil 99                     79.9183         4.1852        84.4047
+
+=================================================================
+Langkah 7: Pengujian Hipotesis — Analisis Deskriptif Latensi
+=================================================================
+  H₀ : Tidak ada perbedaan signifikan pada latensi rata-rata
+       klasifikasi per event antara model kNN dan Logistic Regression.
+  H₁ : Model kNN menghasilkan latensi rata-rata klasifikasi per event
+       yang lebih tinggi dibandingkan model Logistic Regression.
+
+  Pendekatan : Analisis deskriptif — perbandingan nilai rata-rata,
+               nilai minimum, nilai maksimum, dan simpangan baku
+               latensi klasifikasi pada masing-masing model.
+
+  Total event dianalisis : 20,000
+
+  Statistik                    kNN (ms)        LR (ms)   Selisih (ms)
+  ────────────────────── ────────────── ────────────── ──────────────
+  Rata-rata                     11.7401         0.7091       +11.0310
+  Minimum                        1.8950         0.2170        +1.6780
+  Maksimum                     336.6208        13.3429      +323.2779
+  Simpangan Baku                15.2156         0.9176       +14.2980
+
+  Kesimpulan : Rata-rata latensi kNN (11.7401 ms) lebih tinggi dibandingkan Logistic Regression (0.7091 ms) dengan selisih 11.0310 ms. Hasil ini mendukung H₁.
+
+
+=================================================================
+Langkah 8: Analisis Kombinasi Prediksi kNN vs LR
+=================================================================
+  total event : 20,000
+
+  Kombinasi                 Jumlah  Persentase
+  ────────────────────────  ──────  ──────────
+  kNN=normal | LR=normal     6,114      30.57%
+  kNN=normal | LR=anomali    3,147      15.74%
+  kNN=anomali | LR=normal      441       2.20%
+  kNN=anomali | LR=anomali  10,298      51.49%
+
+  interpretasi:
+  kedua model sepakat normal  (kNN=N, LR=N) : 30.57%
+  kedua model sepakat anomali (kNN=A, LR=A) : 51.49%
+  hanya LR deteksi anomali   (kNN=N, LR=A)  : 15.74%
+  hanya kNN deteksi anomali  (kNN=A, LR=N)  : 2.20%
+  tingkat kesepakatan total                 : 82.06%
+  tingkat ketidaksepakatan                  : 17.94%
+
+
+=================================================================
+Tabel Statistik Agregat Kombinasi Prediksi
+=================================================================
+  Kombinasi                 Jumlah  Persentase (%)  Kategori                      Makna                                 
+  ────────────────────────  ──────  ──────────────  ────────────────────────────  ──────────────────────────────────────
+  kNN=normal | LR=normal     6,114           30.57  kedua model sepakat: normal   trafik aman (konsensus normal)        
+  kNN=normal | LR=anomali    3,147           15.74  hanya LR deteksi anomali      LR lebih sensitif — perlu investigasi 
+  kNN=anomali | LR=normal      441            2.20  hanya kNN deteksi anomali     kNN lebih sensitif — perlu investigasi
+  kNN=anomali | LR=anomali  10,298           51.49  kedua model sepakat: anomali  trafik berbahaya (konsensus anomali)  
+
+=================================================================
+Langkah 9: Tabel Ringkasan Evaluasi Akhir
+=================================================================
+  berdasarkan 20,000 event hasil streaming (window_size=1)
+
+  Metrik                 kNN (Awal)            kNN (Akhir)           LR (Awal)             LR (Akhir)              
+  ─────────────────────  ────────────────────  ────────────────────  ────────────────────  ────────────────────────
+  Accuracy               0.9978 (Sangat Baik)  0.8199 (Baik)         0.9980 (Sangat Baik)  0.7510 (Cukup)          
+  Precision              0.9236 (Sangat Baik)  0.7423 (Cukup)        0.9187 (Sangat Baik)  0.6422 (Perlu Perbaikan)
+  Recall                 0.9732 (Sangat Baik)  0.9053 (Sangat Baik)  0.9866 (Sangat Baik)  0.9806 (Sangat Baik)    
+  F1-Score               0.9477 (Sangat Baik)  0.8158 (Baik)         0.9515 (Sangat Baik)  0.7761 (Cukup)          
+  Latency kNN Rata-rata  —                     11.7401 ms            —                     —                       
+  Latency LR Rata-rata   —                     —                     —                     0.7091 ms               
+
+
+=================================================================
+EVALUASI SELESAI — RINGKASAN
+=================================================================
+  total event streaming yang dianalisis : 20,000
+  konfigurasi window                    : 1 event per window
+  latensi rata-rata kNN                 : 11.7401 ms
+  latensi rata-rata LR                  : 0.7091 ms
+  selisih rata-rata (kNN − LR)          : +11.0310 ms → H₁ didukung
+  kNN  — accuracy Akhir : 0.8199 | f1-score: 0.8158
+  LR   — accuracy Akhir : 0.7510 | f1-score: 0.7761
+
+flink@jobmanager:~$ 

@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # APACHE FLINK JOB MANAGER
+  # ============================================
+  jobmanager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    expose:
+      - "6123"
+    ports:
+      - "8081:8081"
+      - "8502:8502"
+    command: jobmanager
+    hostname: jobmanager
+    env_file:
+      - .env
+    environment:
+      - FLINK_PROPERTIES=jobmanager.rpc.address:jobmanager
+    volumes:
+      - ./flink-jobs:/opt/flink/usrlib
+      - ./flink-log:/var/log/flink
+      - ./models:/opt/data/models
+    networks:
+      - skripsi-network
+    container_name: flink-jobmanager
+
+  # ============================================
+  # APACHE FLINK TASK MANAGER
+  # ============================================
+  taskmanager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    expose:
+      - "6121"
+      - "6122"
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    env_file:
+      - .env
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+      - FLINK_PROPERTIES=jobmanager.rpc.address:jobmanager,taskmanager.numberOfTaskSlots:2,taskmanager.memory.process.size:1024m
+      - TASK_MANAGER_NUMBER_OF_TASK_SLOTS=4
+    volumes:
+      - ./flink-jobs:/opt/flink/usrlib
+      - ./flink-log:/var/log/flink
+      - ./models:/opt/data/models
+    networks:
+      - skripsi-network
+    container_name: flink-taskmanager
+
+  # ============================================
+  # POSTGRESQL (SINK - HASIL KLASIFIKASI)
+  # ============================================
+  postgres:
+    image: postgres:13
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DATABASE}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - skripsi-network
+    container_name: postgres-hasil
+
+volumes:
+  postgres_data:
+
+networks:
+  skripsi-network:
+    driver: bridge

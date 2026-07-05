@@ -1,0 +1,24 @@
+{
+  "fitur": [
+    "src_port",
+    "dst_port",
+    "duration",
+    "protocol_encoded",
+    "login_attempt_count",
+    "login_success_count",
+    "cmd_count",
+    "session_event_count",
+    "unique_username_count",
+    "unique_password_count",
+    "ip_total_events",
+    "ip_total_sessions",
+    "ip_total_login_fail",
+    "ip_total_login_ok",
+    "ip_total_downloads",
+    "has_command",
+    "has_download",
+    "has_upload",
+    "has_malware"
+  ],
+  "target": "label"
+}
